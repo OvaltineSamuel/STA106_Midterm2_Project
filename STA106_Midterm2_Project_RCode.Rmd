@@ -224,12 +224,15 @@ knitr::kable(
   col.names = c("Res.Df", "RSS", "Df", "Sum of Sq", "F value", "Pr(>F)")
 ) %>%
   kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
+
+# select final model without interaction as we failed to reject interaction hypothesis
+final_additive_model <- lm(time_log_trans ~ poison + treat, data = df)
 ```
 
 # Analysis
 ```{r}
-# 1. ANOVA Table (Testing for Interactions and Main Effects)
-anova_results <- anova(final_model)
+# 1. ANOVA Table
+anova_results <- anova(final_additive_model)
 knitr::kable(
   anova_results,
   booktabs = TRUE,
@@ -240,11 +243,11 @@ knitr::kable(
 
 # 2. Confidence Intervals (4 Pairwise, 2 Contrasts)
 # use estimated marginal means for the interaction
-emm <- emmeans(final_model, ~ poison * treat)
+emm <- emmeans(final_additive_model, ~ poison * treat)
 
 # --- 4 Pairwise Comparisons ---
 # compare treatments within each Poison level (w/ adjusted with Tukey)
-pairwise_results <- pairs(emmeans(final_model, ~ treat | poison), adjust = "tukey")
+pairwise_results <- pairs(emmeans(final_additive_model, ~ treat | poison), adjust = "tukey")
 pairwise_df <- as.data.frame(pairwise_results)
 knitr::kable(
   pairwise_df,
@@ -255,14 +258,14 @@ knitr::kable(
   kableExtra::kable_styling(latex_options = c("hold_position", "scale_down"))
 
 
-# --- 2 Contrasts ---
+# --- 2 Contrasts (not pairwise) ---
 # contrast 1: Poison 1 vs average of Poison 2 and 3 (across all treatments)
-# contrast 2: Treatment A vs Treatment B (across all poisons)
-emm_poison <- emmeans(final_model, ~ poison)
-emm_treat <- emmeans(final_model, ~ treat)
+# contrast 2: Average of Treat A & C vs Average of Treat B & D (across all poisons)
+emm_poison <- emmeans(final_additive_model, ~ poison)
+emm_treat <- emmeans(final_additive_model, ~ treat)
 
-contrast_list_poison <- list("Poison 1 vs (2+3)/2" = c(1, -0.5, -0.5))
-contrast_list_treat <- list("Treat A vs Treat B" = c(1, -1, 0, 0))
+contrast_list_poison <- list("Poison 1 vs Poison (2+3)/2" = c(1, -0.5, -0.5))
+contrast_list_treat <- list("Treat (A+C)/2 vs Treat (B+D)/2" = c(0.5, -0.5, 0.5, -0.5))
 
 contrast_poison_df <- as.data.frame(contrast(emm_poison, contrast_list_poison, adjust = "bonferroni"))
 contrast_treat_df <- as.data.frame(contrast(emm_treat, contrast_list_treat, adjust = "bonferroni"))
