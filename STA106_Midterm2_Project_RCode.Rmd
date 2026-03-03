@@ -165,6 +165,7 @@ alpha <- 0.05
 t.cutoff <- qt(1 - alpha / (2 * nt), nt - a * b) 
 rij <- rstandard(model_initial)
 outliers <- which(abs(rij) > t.cutoff)
+cat("cutoff value = ", t.cutoff, "\n")
 cat("Outliers detected at rows:", paste(outliers, collapse=", "), "\n")
 
 # 2. Normality Check
@@ -206,9 +207,49 @@ plot(model_log_trans, which = 3, main = "Residual v.s. Fitted: Log Transformed M
 print(leveneTest(model_log_trans))
 
 
+# Test PPCC Transformation
+L4 <- boxcox(model_initial, objective.name = "PPCC", optimize = TRUE)$lambda
+df$time_ppcc_trans <- (df$time^L4 - 1) / L4
+model_ppcc_trans <- lm(time_ppcc_trans ~ poison * treat, data = df)
+
+car::qqPlot(model_ppcc_trans$residuals, id = FALSE, main = "QQ Plot: PPCC Transformed Model")
+print(shapiro.test(model_ppcc_trans$residuals))
+plot(model_ppcc_trans, which = 3, main = "Residual v.s. Fitted: PPCC Transformed Model")
+print(leveneTest(model_ppcc_trans))
+
+# p-value comparison table
+p_shap_initial <- shapiro.test(model_initial$residuals)$p.value
+p_shap_ppcc <- shapiro.test(model_ppcc_trans$residuals)$p.value
+p_shap_sw <- shapiro.test(model_box_trans$residuals)$p.value
+p_shap_ll <- shapiro.test(model_log_trans$residuals)$p.value
+
+p_lev_initial <- leveneTest(model_initial)$"Pr(>F)"[1]
+p_lev_ppcc <- leveneTest(model_ppcc_trans)$"Pr(>F)"[1]
+p_lev_sw <- leveneTest(model_box_trans)$"Pr(>F)"[1]
+p_lev_ll <- leveneTest(model_log_trans)$"Pr(>F)"[1]
+
+diagnostic_summary <- data.frame(
+  Transformation = c(
+    "None (Initial Model)", 
+    "PPCC Box-Cox", 
+    "Shapiro-Wilk Box-Cox", 
+    "Log-Likelihood"
+  ),
+  Normality_P = c(p_shap_initial, p_shap_ppcc, p_shap_sw, p_shap_ll),
+  Variance_P = c(p_lev_initial, p_lev_ppcc, p_lev_sw, p_lev_ll)
+)
+
+knitr::kable(
+  diagnostic_summary,
+  booktabs = TRUE,
+  digits = 4,
+  caption = "Comparison of Diagnostic P-values Across Transformations",
+  col.names = c("Transformation Method", "Shapiro-Wilk P-value", "Brown-Forsythe P-value")
+) %>%
+  kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
+
 # select final model based on diagnostics
 final_model <- model_log_trans
-
 
 # 5. Model Selection and Interaction Hypothesis Test
 # fit the reduced model (main effects only, no interaction) 
