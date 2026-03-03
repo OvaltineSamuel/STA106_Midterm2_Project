@@ -172,7 +172,7 @@ shapiro_initial <- shapiro.test(model_initial$residuals)
 print(shapiro_initial)
 
 # 3. Constant Variance Check
-plot(model_initial, which = 3, main = "Scale-Location: Initial Model")
+plot(model_initial, which = 3, main = "Resiual v.s. Fitted: Initial Model")
 levene_initial <- leveneTest(model_initial)
 print(levene_initial)
 
@@ -190,7 +190,7 @@ model_box_trans <- lm(time_box_trans ~ poison * treat, data = df)
 # redo diagnostics on transformed model
 car::qqPlot(model_box_trans$residuals, id = FALSE, main = "QQ Plot: Box-cox Transformed Model")
 print(shapiro.test(model_box_trans$residuals))
-plot(model_box_trans, which = 3, main = "Scale-Location: Box-cox Transformed Model")
+plot(model_box_trans, which = 3, main = "Resiual v.s. Fitted: Box-cox Transformed Model")
 print(leveneTest(model_box_trans))
 
 
@@ -201,7 +201,7 @@ model_log_trans <- lm(time_log_trans ~ poison * treat, data = df)
 
 car::qqPlot(model_log_trans$residuals, id = FALSE, main = "QQ Plot: Log Transformed Model")
 print(shapiro.test(model_log_trans$residuals))
-plot(model_log_trans, which = 3, main = "Scale-Location: Log Transformed Model")
+plot(model_log_trans, which = 3, main = "Resiual v.s. Fitted: Log Transformed Model")
 print(leveneTest(model_log_trans))
 
 
