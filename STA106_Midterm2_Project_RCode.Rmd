@@ -34,11 +34,11 @@ df$treat <- factor(df$treat)
 # Figures
 ```{r}
 # Figure 1: Overall Histogram of Survival Time
-ggplot(df, aes(x = time)) +
+ ggplot(df, aes(x = time)) +
   geom_histogram(fill = "skyblue", color = "black", bins = 15) +
   labs(title = "Distribution of Survival Times (Overall)",
        x = "Survival Time",
-       y = "Frequency")
+       y = "Frequency") 
 
 # Figure 2: Boxplot by Poison Type
 ggplot(df, aes(x = poison, y = time, fill = poison)) +
@@ -61,6 +61,7 @@ ggplot(df, aes(x = treat, y = time, fill = poison)) +
        x = "Treatment Type",
        y = "Survival Time")
 ```
+
 \newpage
 
 # Summaries
@@ -124,6 +125,7 @@ knitr::kable(
   summary_stats,
   booktabs = TRUE,
   digits = 4,
+  linesep = c("", "", "", "\\addlinespace"), # This is the magic line!
   caption = "Summary Statistics by Poison and Treatment",
   col.names = c("Poison", "Treatment", "Mean Time", "Std. Deviation", "Sample Size")
 ) %>%
@@ -152,20 +154,10 @@ knitr::kable(
 
 # Diagnosistic
 ```{r}
-# fit initial interaction model
+# fit initial model
 model_initial <- lm(time ~ poison * treat, data = df)
 
-# 1. Normality Check
-car::qqPlot(model_initial$residuals, id = FALSE, main = "QQ Plot: Initial Model")
-shapiro_initial <- shapiro.test(model_initial$residuals)
-print(shapiro_initial)
-
-# 2. Constant Variance Check
-plot(model_initial, which = 3, main = "Scale-Location: Initial Model")
-levene_initial <- leveneTest(model_initial)
-print(levene_initial)
-
-# 3. Outlier Check with Studentized Residuals and Bonferroni cutoff
+# 1. Outlier Check with Studentized Residuals and Bonferroni cutoff
 nt <- nrow(df)
 a <- length(unique(df$poison))
 b <- length(unique(df$treat))
@@ -173,25 +165,49 @@ alpha <- 0.05
 t.cutoff <- qt(1 - alpha / (2 * nt), nt - a * b) 
 rij <- rstandard(model_initial)
 outliers <- which(abs(rij) > t.cutoff)
-print(paste("Outliers detected at rows:", paste(outliers, collapse=", ")))
+cat("Outliers detected at rows:", paste(outliers, collapse=", "), "\n")
 
-# 4. Box-Cox Transformation
+# 2. Normality Check
+car::qqPlot(model_initial$residuals, id = FALSE, main = "QQ Plot: Initial Model")
+shapiro_initial <- shapiro.test(model_initial$residuals)
+print(shapiro_initial)
+
+# 3. Constant Variance Check
+plot(model_initial, which = 3, main = "Scale-Location: Initial Model")
+levene_initial <- leveneTest(model_initial)
+print(levene_initial)
+
+# 4. Evalutate Two Transformations
+# Test Box-Cox Transformation
 # get best lambda using Shapiro-Wilk
 L2 <- boxcox(model_initial, objective.name = "Shapiro-Wilk", optimize = TRUE)$lambda
 
 # apply transformation
-df$time_trans <- (df$time^L2 - 1) / L2
+df$time_box_trans <- (df$time^L2 - 1) / L2
 
 # fit new model with transformed data
-model_trans <- lm(time_trans ~ poison * treat, data = df)
+model_box_trans <- lm(time_box_trans ~ poison * treat, data = df)
 
 # redo diagnostics on transformed model
-car::qqPlot(model_trans$residuals, id = FALSE, main = "QQ Plot: Transformed Model")
-print(shapiro.test(model_trans$residuals))
-print(leveneTest(model_trans))
+car::qqPlot(model_box_trans$residuals, id = FALSE, main = "QQ Plot: Transformed Model")
+print(shapiro.test(model_box_trans$residuals))
+plot(model_box_trans, which = 3, main = "Scale-Location: Transformed Model")
+print(leveneTest(model_box_trans))
+
+
+# Test Log Transformation
+L3 <- boxcox(df$time, objective.name = "Log-Likelihood", optimize = TRUE)$lambda
+df$time_log_trans <- (df$time^L3 - 1) / L3
+model_log_trans <- lm(time_log_trans ~ poison * treat, data = df)
+
+car::qqPlot(model_log_trans$residuals, id = FALSE, main = "QQ Plot: Transformed Model")
+print(shapiro.test(model_log_trans$residuals))
+plot(model_log_trans, which = 3, main = "Scale-Location: Transformed Model")
+print(leveneTest(model_log_trans))
+
 
 # select final model based on diagnostics
-final_model <- model_trans
+final_model <- model_log_trans
 ```
 
 # Analysis
