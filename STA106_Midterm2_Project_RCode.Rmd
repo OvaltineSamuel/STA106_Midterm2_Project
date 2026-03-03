@@ -153,6 +153,7 @@ knitr::kable(
 
 # Diagnosistic
 ```{r}
+
 # fit initial model
 model_initial <- lm(time ~ poison * treat, data = df)
 
@@ -172,7 +173,7 @@ shapiro_initial <- shapiro.test(model_initial$residuals)
 print(shapiro_initial)
 
 # 3. Constant Variance Check
-plot(model_initial, which = 3, main = "Resiual v.s. Fitted: Initial Model")
+plot(model_initial, which = 3, main = "Residual v.s. Fitted: Initial Model")
 levene_initial <- leveneTest(model_initial)
 print(levene_initial)
 
@@ -190,7 +191,7 @@ model_box_trans <- lm(time_box_trans ~ poison * treat, data = df)
 # redo diagnostics on transformed model
 car::qqPlot(model_box_trans$residuals, id = FALSE, main = "QQ Plot: Box-cox Transformed Model")
 print(shapiro.test(model_box_trans$residuals))
-plot(model_box_trans, which = 3, main = "Resiual v.s. Fitted: Box-cox Transformed Model")
+plot(model_box_trans, which = 3, main = "Residual v.s. Fitted: Box-cox Transformed Model")
 print(leveneTest(model_box_trans))
 
 
@@ -201,12 +202,28 @@ model_log_trans <- lm(time_log_trans ~ poison * treat, data = df)
 
 car::qqPlot(model_log_trans$residuals, id = FALSE, main = "QQ Plot: Log Transformed Model")
 print(shapiro.test(model_log_trans$residuals))
-plot(model_log_trans, which = 3, main = "Resiual v.s. Fitted: Log Transformed Model")
+plot(model_log_trans, which = 3, main = "Residual v.s. Fitted: Log Transformed Model")
 print(leveneTest(model_log_trans))
 
 
 # select final model based on diagnostics
 final_model <- model_log_trans
+
+
+# 5. Model Selection and Interaction Hypothesis Test
+# fit the reduced model (main effects only, no interaction) 
+model_no_interaction <- lm(time_log_trans ~ poison + treat, data = df)
+
+# ANOVA test to compare the reduced model to the full model
+interaction_test <- anova(model_no_interaction, model_log_trans)
+knitr::kable(
+  interaction_test,
+  booktabs = TRUE,
+  digits = 4,
+  caption = "Hypothesis Test for Interaction (Reduced vs. Full Model)",
+  col.names = c("Res.Df", "RSS", "Df", "Sum of Sq", "F value", "Pr(>F)")
+) %>%
+  kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
 ```
 
 # Analysis
