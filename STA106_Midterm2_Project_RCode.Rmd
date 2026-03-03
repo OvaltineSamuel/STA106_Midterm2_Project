@@ -1,0 +1,246 @@
+---
+title: "STA106_Midterm2_Project_RCode"
+author: "Samuel Huang"
+date: "2026-02-27"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(ggplot2)
+library(dplyr)
+library(knitr)
+library(kableExtra) 
+library(car)      
+library(EnvStats) 
+library(emmeans)
+```
+
+# Load the data
+```{r}
+df <- read.csv("poisons.csv")
+
+# poison and treatment are factors
+df$poison <- factor(df$poison)
+df$treat <- factor(df$treat)
+```
+
+\newpage
+
+# Figures
+```{r}
+# Figure 1: Overall Histogram of Survival Time
+ggplot(df, aes(x = time)) +
+  geom_histogram(fill = "skyblue", color = "black", bins = 15) +
+  labs(title = "Distribution of Survival Times (Overall)",
+       x = "Survival Time",
+       y = "Frequency")
+
+# Figure 2: Boxplot by Poison Type
+ggplot(df, aes(x = poison, y = time, fill = poison)) +
+  geom_boxplot() +
+  labs(title = "Survival Time by Poison Type",
+       x = "Poison Type",
+       y = "Survival Time")
+
+# Figure 3: Boxplot by Treatment Type
+ggplot(df, aes(x = treat, y = time, fill = treat)) +
+  geom_boxplot() +
+  labs(title = "Survival Time by Treatment Type",
+       x = "Treatment Type",
+       y = "Survival Time")
+
+# Figure 4:survival Time by Treatment and Poison Type
+ggplot(df, aes(x = treat, y = time, fill = poison)) +
+  geom_boxplot() +
+  labs(title = "Survival Time by Treatment and Poison Type",
+       x = "Treatment Type",
+       y = "Survival Time")
+```
+\newpage
+
+# Summaries
+```{r}
+# 1. Grouped Summary (Poison & Treatment)
+summary_stats <- df %>%
+  group_by(poison, treat) %>%
+  summarise(
+    Mean_Time = mean(time, na.rm = TRUE),
+    SD_Time = sd(time, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+
+# 2. Summary by Poison Type
+poison_summary <- df %>%
+  group_by(poison) %>%
+  summarise(
+    Mean_Time = mean(time, na.rm = TRUE),
+    SD_Time = sd(time, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+
+# 3. Summary by Treatment Type
+treat_summary <- df %>%
+  group_by(treat) %>%
+  summarise(
+    Mean_Time = mean(time, na.rm = TRUE),
+    SD_Time = sd(time, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+
+# 4. Overall Summary  
+overall_stats <- df %>%
+  summarise(
+    Mean_Time = mean(time, na.rm = TRUE),
+    SD_Time = sd(time, na.rm = TRUE),
+    n = n()
+  )
+```
+
+\newpage
+
+# Tables
+```{r}
+
+# Table 1: Overall 
+knitr::kable(
+  overall_stats,
+  booktabs = TRUE,
+  digits = 4,
+  caption = "Overall Summary Statistics",
+  col.names = c("Overall Mean Time", "Overall Std. Deviation", "Total Sample Size")
+) %>%
+  kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
+
+# Table 2: Grouped
+knitr::kable(
+  summary_stats,
+  booktabs = TRUE,
+  digits = 4,
+  caption = "Summary Statistics by Poison and Treatment",
+  col.names = c("Poison", "Treatment", "Mean Time", "Std. Deviation", "Sample Size")
+) %>%
+  kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
+
+# Table 3: By Poison Type
+knitr::kable(
+  poison_summary,
+  booktabs = TRUE,
+  digits = 4,
+  caption = "Summary Statistics by Poison Type",
+  col.names = c("Poison Type", "Mean Time", "Std. Deviation", "Sample Size")
+) %>%
+  kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
+
+# Table 4: By Treatment Type
+knitr::kable(
+  treat_summary,
+  booktabs = TRUE,
+  digits = 4,
+  caption = "Summary Statistics by Treatment Type",
+  col.names = c("Treatment Type", "Mean Time", "Std. Deviation", "Sample Size")
+) %>%
+  kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
+```
+
+# Diagnosistic
+```{r}
+# fit initial interaction model
+model_initial <- lm(time ~ poison * treat, data = df)
+
+# 1. Normality Check
+car::qqPlot(model_initial$residuals, id = FALSE, main = "QQ Plot: Initial Model")
+shapiro_initial <- shapiro.test(model_initial$residuals)
+print(shapiro_initial)
+
+# 2. Constant Variance Check
+plot(model_initial, which = 3, main = "Scale-Location: Initial Model")
+levene_initial <- leveneTest(model_initial)
+print(levene_initial)
+
+# 3. Outlier Check with Studentized Residuals and Bonferroni cutoff
+nt <- nrow(df)
+a <- length(unique(df$poison))
+b <- length(unique(df$treat))
+alpha <- 0.05
+t.cutoff <- qt(1 - alpha / (2 * nt), nt - a * b) 
+rij <- rstandard(model_initial)
+outliers <- which(abs(rij) > t.cutoff)
+print(paste("Outliers detected at rows:", paste(outliers, collapse=", ")))
+
+# 4. Box-Cox Transformation
+# get best lambda using Shapiro-Wilk
+L2 <- boxcox(model_initial, objective.name = "Shapiro-Wilk", optimize = TRUE)$lambda
+
+# apply transformation
+df$time_trans <- (df$time^L2 - 1) / L2
+
+# fit new model with transformed data
+model_trans <- lm(time_trans ~ poison * treat, data = df)
+
+# redo diagnostics on transformed model
+car::qqPlot(model_trans$residuals, id = FALSE, main = "QQ Plot: Transformed Model")
+print(shapiro.test(model_trans$residuals))
+print(leveneTest(model_trans))
+
+# select final model based on diagnostics
+final_model <- model_trans
+```
+
+# Analysis
+```{r}
+# 1. ANOVA Table (Testing for Interactions and Main Effects)
+anova_results <- anova(final_model)
+knitr::kable(
+  anova_results,
+  booktabs = TRUE,
+  digits = 4,
+  caption = "Two-Way ANOVA Table for Final Model"
+) %>%
+  kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
+
+# 2. Confidence Intervals (4 Pairwise, 2 Contrasts)
+# use estimated marginal means for the interaction
+emm <- emmeans(final_model, ~ poison * treat)
+
+# --- 4 Pairwise Comparisons ---
+# compare treatments within each Poison level (w/ adjusted with Tukey)
+pairwise_results <- pairs(emmeans(final_model, ~ treat | poison), adjust = "tukey")
+pairwise_df <- as.data.frame(pairwise_results)
+knitr::kable(
+  pairwise_df,
+  booktabs = TRUE,
+  digits = 4,
+  caption = "Pairwise Comparisons of Treatments within Poison Types (Tukey Adjusted)"
+) %>%
+  kableExtra::kable_styling(latex_options = c("hold_position", "scale_down"))
+
+
+# --- 2 Contrasts ---
+# contrast 1: Poison 1 vs average of Poison 2 and 3 (across all treatments)
+# contrast 2: Treatment A vs Treatment B (across all poisons)
+emm_poison <- emmeans(final_model, ~ poison)
+emm_treat <- emmeans(final_model, ~ treat)
+
+contrast_list_poison <- list("Poison 1 vs (2+3)/2" = c(1, -0.5, -0.5))
+contrast_list_treat <- list("Treat A vs Treat B" = c(1, -1, 0, 0))
+
+contrast_poison_df <- as.data.frame(contrast(emm_poison, contrast_list_poison, adjust = "bonferroni"))
+contrast_treat_df <- as.data.frame(contrast(emm_treat, contrast_list_treat, adjust = "bonferroni"))
+combined_contrasts <- rbind(contrast_poison_df, contrast_treat_df)
+
+knitr::kable(
+  combined_contrasts,
+  booktabs = TRUE,
+  digits = 4,
+  caption = "Custom Contrasts (Bonferroni Adjusted)"
+) %>%
+  kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
+```
