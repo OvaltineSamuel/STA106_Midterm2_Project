@@ -125,7 +125,6 @@ knitr::kable(
   summary_stats,
   booktabs = TRUE,
   digits = 4,
-  linesep = c("", "", "", "\\addlinespace"), # This is the magic line!
   caption = "Summary Statistics by Poison and Treatment",
   col.names = c("Poison", "Treatment", "Mean Time", "Std. Deviation", "Sample Size")
 ) %>%
