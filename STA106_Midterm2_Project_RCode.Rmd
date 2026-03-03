@@ -189,9 +189,9 @@ df$time_box_trans <- (df$time^L2 - 1) / L2
 model_box_trans <- lm(time_box_trans ~ poison * treat, data = df)
 
 # redo diagnostics on transformed model
-car::qqPlot(model_box_trans$residuals, id = FALSE, main = "QQ Plot: Transformed Model")
+car::qqPlot(model_box_trans$residuals, id = FALSE, main = "QQ Plot: Box-cox Transformed Model")
 print(shapiro.test(model_box_trans$residuals))
-plot(model_box_trans, which = 3, main = "Scale-Location: Transformed Model")
+plot(model_box_trans, which = 3, main = "Scale-Location: Box-cox Transformed Model")
 print(leveneTest(model_box_trans))
 
 
@@ -200,9 +200,9 @@ L3 <- boxcox(df$time, objective.name = "Log-Likelihood", optimize = TRUE)$lambda
 df$time_log_trans <- (df$time^L3 - 1) / L3
 model_log_trans <- lm(time_log_trans ~ poison * treat, data = df)
 
-car::qqPlot(model_log_trans$residuals, id = FALSE, main = "QQ Plot: Transformed Model")
+car::qqPlot(model_log_trans$residuals, id = FALSE, main = "QQ Plot: Log Transformed Model")
 print(shapiro.test(model_log_trans$residuals))
-plot(model_log_trans, which = 3, main = "Scale-Location: Transformed Model")
+plot(model_log_trans, which = 3, main = "Scale-Location: Log Transformed Model")
 print(leveneTest(model_log_trans))
 
 
