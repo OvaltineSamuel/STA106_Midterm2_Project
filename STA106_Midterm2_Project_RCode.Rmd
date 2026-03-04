@@ -162,13 +162,22 @@ model_initial <- lm(time ~ poison * treat, data = df)
 nt <- nrow(df)
 a <- length(unique(df$poison))
 b <- length(unique(df$treat))
+df_resid <- nt - (a * b)
 alpha <- 0.05
-t.cutoff <- qt(1 - alpha / (2 * nt), nt - a * b) 
-rij <- rstandard(model_initial)
-outliers <- which(abs(rij) > t.cutoff)
-
+t.cutoff <- qt(1 - alpha / (2 * nt), df_resid) 
 cat("cutoff value = ", t.cutoff, "\n")
-cat("Outliers detected at rows:", paste(outliers, collapse=", "), "\n")
+
+# Outlier via semi-studentized/standardized residuals
+MSE <- sum(model_initial$residuals^2) / df_resid
+semi_studentized <- model_initial$residuals / sqrt(MSE)
+outliers_semi <- which(abs(semi_studentized) > t.cutoff)
+cat("Outliers via Semi-studentized residuals:", paste(outliers_semi, collapse=", "), "\n")
+
+# Outliers via studentized/standardized residuals (rstandard)
+rij <- rstandard(model_initial)
+outliers_std <- which(abs(rij) > t.cutoff)
+cat("Outliers via studentized residuals (rstandard):", paste(outliers_std, collapse=", "), "\n\n")
+
 
 # 2. Normality Check
 car::qqPlot(model_initial$residuals, id = FALSE, main = "QQ Plot: Initial Model")
@@ -352,7 +361,7 @@ knitr::kable(
   booktabs = TRUE,
   digits = 4,
   row.names = FALSE,
-  caption = "All Pairwise Comparisons for Main Effects (Scheffe Adjusted)",
+  caption = "All Pairwise Comparisons for Main Effects (Scheffe)",
   col.names = c("Contrast Pair", "Difference", "Lower CI", "Upper CI", "P-Value")
 ) %>%
   kableExtra::kable_styling(latex_options = c("hold_position", "scale_down"))
@@ -384,7 +393,7 @@ knitr::kable(
   booktabs = TRUE,
   digits = 4,
   row.names = FALSE,
-  caption = "Custom Non-Pairwise Contrasts (Scheffe Adjusted)",
+  caption = "Custom Non-Pairwise Contrasts (Scheffe)",
   col.names = c("Contrast", "Difference", "Lower CI", "Upper CI", "P-Value")
 ) %>%
   kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
