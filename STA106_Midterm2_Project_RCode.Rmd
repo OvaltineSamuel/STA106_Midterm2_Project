@@ -18,6 +18,7 @@ library(kableExtra)
 library(car)      
 library(EnvStats) 
 library(emmeans)
+library(DescTools)
 ```
 
 # Load the data
@@ -165,6 +166,7 @@ alpha <- 0.05
 t.cutoff <- qt(1 - alpha / (2 * nt), nt - a * b) 
 rij <- rstandard(model_initial)
 outliers <- which(abs(rij) > t.cutoff)
+
 cat("cutoff value = ", t.cutoff, "\n")
 cat("Outliers detected at rows:", paste(outliers, collapse=", "), "\n")
 
@@ -243,7 +245,7 @@ knitr::kable(
   diagnostic_summary,
   booktabs = TRUE,
   digits = 4,
-  caption = "Comparison of Diagnostic P-values Across Transformations",
+  caption = "Comparison of Test P-values Across Transformations",
   col.names = c("Transformation Method", "Shapiro-Wilk P-value", "Brown-Forsythe P-value")
 ) %>%
   kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
@@ -252,6 +254,17 @@ knitr::kable(
 final_model <- model_log_trans
 
 # 5. Model Selection and Interaction Hypothesis Test
+
+# interaction plot with full model (model_log_trans)
+emmip(model_log_trans, poison ~ treat) +
+  labs(
+    title = "Interaction Plot of Log-Survival Time",
+    x = "Treatment Type",
+    y = "Estimated Marginal Mean (Log of Time)",
+    color = "Poison Type"
+  ) +
+  theme_minimal()
+
 # fit the reduced model (main effects only, no interaction) 
 model_no_interaction <- lm(time_log_trans ~ poison + treat, data = df)
 
@@ -266,9 +279,38 @@ knitr::kable(
 ) %>%
   kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
 
+# Partial R square value for interaction: R^2(AB | A+B)
+anova_full_model <- anova(model_log_trans)
+SS_interaction <- anova_full_model["poison:treat", "Sum Sq"]
+SS_error_full <- anova_full_model["Residuals", "Sum Sq"]
+
+partial_R2_interaction <- SS_interaction / (SS_interaction + SS_error_full)
+
+cat("\n", "Partial R^2 (AB|A+B) for the Interaction Term: ", round(partial_R2_interaction, 4), "\n")
+
 # select final model without interaction as we failed to reject interaction hypothesis
-final_additive_model <- lm(time_log_trans ~ poison + treat, data = df)
+final_additive_model <- aov(time_log_trans ~ poison + treat, data = df)
 ```
+
+# 2x2 grid plot graph
+```{r, fig.width=10, fig.height=8}
+# combine qq plots
+par(mfrow = c(2, 2)) 
+car::qqPlot(model_initial$residuals, id = FALSE, main = "QQ: Initial")
+car::qqPlot(model_ppcc_trans$residuals, id = FALSE, main = "QQ: PPCC")
+car::qqPlot(model_box_trans$residuals, id = FALSE, main = "QQ: Shapiro-Wilk")
+car::qqPlot(model_log_trans$residuals, id = FALSE, main = "QQ: Log")
+par(mfrow = c(1, 1)) 
+
+# combine res vs fit plots
+par(mfrow = c(2, 2)) 
+plot(model_initial, which = 3, main = "Res vs Fit: Initial")
+plot(model_ppcc_trans, which = 3, main = "Res vs Fit: PPCC")
+plot(model_box_trans, which = 3, main = "Res vs Fit: Shapiro-Wilk")
+plot(model_log_trans, which = 3, main = "Res vs Fit: Log")
+par(mfrow = c(1, 1))
+```
+\newpage
 
 # Analysis
 ```{r}
@@ -278,26 +320,42 @@ knitr::kable(
   anova_results,
   booktabs = TRUE,
   digits = 4,
-  caption = "Two-Way ANOVA Table for Final Model"
+  caption = "Two-Way ANOVA Table for Final Additive Model"
 ) %>%
   kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
 
-# 2. Confidence Intervals (4 Pairwise, 2 Contrasts)
-# use estimated marginal means for the interaction
-emm <- emmeans(final_additive_model, ~ poison * treat)
+# main effects partial R square R^2(A|B) and R^2(B|A)
+SS_poison <- anova_results["poison", "Sum Sq"]
+SS_treat <- anova_results["treat", "Sum Sq"]
+SS_error_add <- anova_results["Residuals", "Sum Sq"]
 
-# --- 4 Pairwise Comparisons ---
-# compare treatments within each Poison level (w/ adjusted with Tukey)
-pairwise_results <- pairs(emmeans(final_additive_model, ~ treat | poison), adjust = "tukey")
-pairwise_df <- as.data.frame(pairwise_results)
+partial_R2_poison <- SS_poison / (SS_poison + SS_error_add)
+partial_R2_treat <- SS_treat / (SS_treat + SS_error_add)
+
+cat("Partial R^2 (A|B) for Factor A (Poison):", round(partial_R2_poison, 4), "\n")
+cat("Partial R^2 (B|A) for Factor B (Treatment):", round(partial_R2_treat, 4), "\n")
+
+# 2. Confidence Intervals (4 Pairwise, 2 Contrasts)
+
+# --- 4 Pairwise ---
+# all pairwise CI
+scheffe_pairwise <- ScheffeTest(final_additive_model, conf.level = 0.95)
+scheffe_poison_df <- as.data.frame(scheffe_pairwise$poison)
+scheffe_treat_df <- as.data.frame(scheffe_pairwise$treat)
+scheffe_poison_df$Pair <- rownames(scheffe_poison_df)
+scheffe_treat_df$Pair <- rownames(scheffe_treat_df)
+combined_scheffe_pairwise <- rbind(scheffe_poison_df, scheffe_treat_df)
+combined_scheffe_pairwise <- combined_scheffe_pairwise[, c("Pair", "diff", "lwr.ci", "upr.ci", "pval")]
+combined_scheffe_pairwise$pval <- format.pval(combined_scheffe_pairwise$pval, eps = 0.0001, digits = 4)
 knitr::kable(
-  pairwise_df,
+  combined_scheffe_pairwise,
   booktabs = TRUE,
   digits = 4,
-  caption = "Pairwise Comparisons of Treatments within Poison Types (Tukey Adjusted)"
+  row.names = FALSE,
+  caption = "All Pairwise Comparisons for Main Effects (Scheffe Adjusted)",
+  col.names = c("Contrast Pair", "Difference", "Lower CI", "Upper CI", "P-Value")
 ) %>%
   kableExtra::kable_styling(latex_options = c("hold_position", "scale_down"))
-
 
 # --- 2 Contrasts (not pairwise) ---
 # contrast 1: Poison 1 vs average of Poison 2 and 3 (across all treatments)
@@ -308,15 +366,26 @@ emm_treat <- emmeans(final_additive_model, ~ treat)
 contrast_list_poison <- list("Poison 1 vs Poison (2+3)/2" = c(1, -0.5, -0.5))
 contrast_list_treat <- list("Treat (A+C)/2 vs Treat (B+D)/2" = c(0.5, -0.5, 0.5, -0.5))
 
-contrast_poison_df <- as.data.frame(contrast(emm_poison, contrast_list_poison, adjust = "bonferroni"))
-contrast_treat_df <- as.data.frame(contrast(emm_treat, contrast_list_treat, adjust = "bonferroni"))
-combined_contrasts <- rbind(contrast_poison_df, contrast_treat_df)
+c_poison <- summary(contrast(emm_poison, contrast_list_poison, adjust = "scheffe"), infer = c(TRUE, TRUE))
+c_treat <- summary(contrast(emm_treat, contrast_list_treat, adjust = "scheffe"), infer = c(TRUE, TRUE))
+
+combined_custom <- rbind(as.data.frame(c_poison), as.data.frame(c_treat))
+
+formatted_custom_contrasts <- data.frame(
+  Contrast = combined_custom$contrast,
+  diff = combined_custom$estimate,
+  lwr.ci = combined_custom$lower.CL,
+  upr.ci = combined_custom$upper.CL,
+  pval = format.pval(combined_custom$p.value, eps = 0.0001, digits = 4)
+)
 
 knitr::kable(
-  combined_contrasts,
+  formatted_custom_contrasts,
   booktabs = TRUE,
   digits = 4,
-  caption = "Custom Contrasts (Bonferroni Adjusted)"
+  row.names = FALSE,
+  caption = "Custom Non-Pairwise Contrasts (Scheffe Adjusted)",
+  col.names = c("Contrast", "Difference", "Lower CI", "Upper CI", "P-Value")
 ) %>%
   kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
 ```
