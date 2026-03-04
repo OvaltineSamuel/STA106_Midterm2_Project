@@ -34,33 +34,34 @@ df$treat <- factor(df$treat)
 
 # Figures
 ```{r}
-# Figure 1: Overall Histogram of Survival Time
- ggplot(df, aes(x = time)) +
-  geom_histogram(fill = "skyblue", color = "black", bins = 15) +
-  labs(title = "Distribution of Survival Times (Overall)",
-       x = "Survival Time",
-       y = "Frequency") 
+# Figure 1: histogram, survivial vs frequency
+ggplot(df, aes(x = time)) +
+    geom_histogram(color =  "black",fill="skyblue", binwidth = 0.082) +
+    ggtitle("Distribution of Survival Time for all data samples") +
+    xlab("Survival Time") +
+    ylab("Frequency")
 
-# Figure 2: Boxplot by Poison Type
-ggplot(df, aes(x = poison, y = time, fill = poison)) +
+# Figure 2: Boxplot, survivial vs poison
+ggplot(df, aes(x=poison, y=time, fill=poison)) +
   geom_boxplot() +
-  labs(title = "Survival Time by Poison Type",
-       x = "Poison Type",
-       y = "Survival Time")
+  ggtitle("Survival Time by Poison Type") +
+  xlab("Poison Type") +
+  ylab("Survival Time")  
 
-# Figure 3: Boxplot by Treatment Type
-ggplot(df, aes(x = treat, y = time, fill = treat)) +
+# Figure 3: boxplot, survival vs treatment 
+ggplot(df, aes(x=treat, y=time, fill=treat)) +
   geom_boxplot() +
-  labs(title = "Survival Time by Treatment Type",
+  labs(title = "Survival Time by Different Treatment Type",
        x = "Treatment Type",
        y = "Survival Time")
 
-# Figure 4:survival Time by Treatment and Poison Type
-ggplot(df, aes(x = treat, y = time, fill = poison)) +
+# Figure 4: survival time vs treatment, by poison type 
+ggplot(df, aes(x=treat, y=time, fill=poison)) +
   geom_boxplot() +
-  labs(title = "Survival Time by Treatment and Poison Type",
+  labs(title = "Survival Time by Different Treatment and Poison Type",
        x = "Treatment Type",
        y = "Survival Time")
+
 ```
 
 \newpage
@@ -110,44 +111,54 @@ overall_stats <- df %>%
 
 # Tables
 ```{r}
+# Table 1 group summary, poison and treatment types
+group_stats <- df %>%
+  group_by(poison, treat) %>%
+  summarise(
+    Mean_Time = mean(time),
+    SD_Time = sd(time),
+    n = n(),
+    .groups = "drop"
+  )
 
-# Table 1: Overall 
 knitr::kable(
-  overall_stats,
+  group_stats,
   booktabs = TRUE,
   digits = 4,
-  caption = "Overall Summary Statistics",
-  col.names = c("Overall Mean Time", "Overall Std. Deviation", "Total Sample Size")
+  caption = "Summary Statistic by Poison Types and Treatment Types",
+  col.names = c("Poison", "Treatment", "Mean Time", "Std. Deviation", "Sample size")
 ) %>%
   kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
 
-# Table 2: Grouped
+# Table2,  summary stat, poison type
+p.means <- by(df$time, df$poison, mean)
+p.sds   <- by(df$time, df$poison, sd)
+p.nis   <- by(df$time, df$poison, length)
+poison_table <- rbind(p.means, p.sds, p.nis)
+rownames(poison_table) <- c("Mean Time", "Std. Deviation", "Sample size")
+
 knitr::kable(
-  summary_stats,
+  t(poison_table),
   booktabs = TRUE,
   digits = 4,
-  caption = "Summary Statistics by Poison and Treatment",
-  col.names = c("Poison", "Treatment", "Mean Time", "Std. Deviation", "Sample Size")
+  caption = "Summary Statistic by Poison Type",
+  col.names = c("Mean Time", "Std. Deviation", "Sample size")
 ) %>%
   kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
 
-# Table 3: By Poison Type
-knitr::kable(
-  poison_summary,
-  booktabs = TRUE,
-  digits = 4,
-  caption = "Summary Statistics by Poison Type",
-  col.names = c("Poison Type", "Mean Time", "Std. Deviation", "Sample Size")
-) %>%
-  kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
+# Table3, summary stat, by treatment type
+t.means <- by(df$time, df$treat, mean)
+t.sds   <- by(df$time, df$treat, sd)
+t.nis   <- by(df$time, df$treat, length)
+treat_table <- rbind(t.means, t.sds, t.nis)
+rownames(treat_table) <- c("Mean Time", "Std. Deviation", "Sample size")
 
-# Table 4: By Treatment Type
 knitr::kable(
-  treat_summary,
+  t(treat_table),
   booktabs = TRUE,
   digits = 4,
-  caption = "Summary Statistics by Treatment Type",
-  col.names = c("Treatment Type", "Mean Time", "Std. Deviation", "Sample Size")
+  caption = "Summary Statistic by Treatment Types",
+  col.names = c("Mean Time", "Std. Deviation", "Sample size")
 ) %>%
   kableExtra::kable_styling(latex_options = "hold_position", full_width = FALSE)
 ```
